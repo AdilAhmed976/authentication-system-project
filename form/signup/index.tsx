@@ -101,7 +101,7 @@ const SignupForm = ({}: SignFormProps) => {
       }
 
       toast.success("Account created. Please check your email to confirm, then log in.")
-      router.replace("/login")
+      router.replace("/dashboard")
     } finally {
       setIsLoading(false)
     }
