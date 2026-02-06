@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const supabase = getSupabaseBrowserClient()
 
   const [currentUser, setCurrentUser] = useState<User | null>(null)
+  console.log("🚀 ~ DashboardPage ~ currentUser:", currentUser)
   const [loading, setLoading] = useState(true)
 
   async function handleSignOut() {
@@ -17,8 +18,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadUser() {
-      await loadUser()
-      setLoading(false)
+      try {
+        await loadUser()
+      } catch (error) {
+      } finally {
+        setLoading(false)
+      }
     }
     loadUser()
 
