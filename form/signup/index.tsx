@@ -1,0 +1,372 @@
+"use client"
+
+import React, { useMemo, useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { PasswordStrength, SignFormProps, SignFormValues, StrengthScore } from "./signup.types"
+import { SignupSchema } from "./signup.schema"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Check, Eye, EyeOff, Info, Loader2, X } from "lucide-react"
+import Link from "next/link"
+import { Card, CardContent } from "@/components/ui/card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import { cn } from "@/lib/utils"
+import { FieldDescription, FieldSeparator } from "@/components/ui/field"
+import Image from "next/image"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import { getSupabaseBrowserClient } from "@/lib/supabase/browser-client"
+
+// Constants
+const PASSWORD_REQUIREMENTS = [
+  { regex: /.{6,}/, text: "At least 6 characters" },
+  { regex: /[0-9]/, text: "At least 1 number" },
+  { regex: /[a-z]/, text: "At least 1 lowercase letter" },
+  { regex: /[A-Z]/, text: "At least 1 uppercase letter" },
+  { regex: /[@$!%*?&#^()_+=\-{}[\]|:;"'<>,./]/, text: "At least 1 special character" },
+] as const
+
+const STRENGTH_CONFIG = {
+  colors: {
+    0: "bg-border",
+    1: "bg-red-500",
+    2: "bg-orange-500",
+    3: "bg-amber-500",
+    4: "bg-amber-700",
+    5: "bg-emerald-500",
+  } satisfies Record<StrengthScore, string>,
+  texts: {
+    0: "Enter a password",
+    1: "Weak password",
+    2: "Medium password!",
+    3: "Strong password!!",
+    4: "Very strong password!!!",
+  } satisfies Record<Exclude<StrengthScore, 5>, string>,
+} as const
+
+const SignupForm = ({}: SignFormProps) => {
+  const supabase = getSupabaseBrowserClient()
+  const router = useRouter()
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const form = useForm<SignFormValues>({
+    resolver: zodResolver(SignupSchema),
+    defaultValues: {
+      first_name: "",
+      last_name: "",
+      email: "",
+      password: "",
+      confirm_password: "",
+    },
+  })
+
+  const onSubmit = async (data: SignFormValues) => {
+    setIsLoading(true)
+    try {
+      const { confirm_password, ...payload } = data
+      const { data: signupData, error } = await supabase.auth.signUp({
+        email: payload.email,
+        password: payload.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/welcome`,
+          data: {
+            first_name: payload.first_name,
+            last_name: payload.last_name,
+          },
+        },
+      })
+
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+
+      // If email confirmations are enabled, session can be null.
+      if (signupData?.session) {
+        toast.success("Signed up successfully")
+        router.replace("/dashboard")
+        router.refresh()
+        return
+      }
+
+      toast.success("Account created. Please check your email to confirm, then log in.")
+      router.replace("/login")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const password = form.watch("password") ?? ""
+
+  const calculateStrength = useMemo((): PasswordStrength => {
+    const requirements = PASSWORD_REQUIREMENTS.map((req) => ({
+      met: req.regex.test(password),
+      text: req.text,
+    }))
+
+    return {
+      score: requirements.filter((req) => req.met).length as StrengthScore,
+      requirements,
+    }
+  }, [password])
+
+  const strengthTextKey = Math.min(calculateStrength.score, 4) as keyof typeof STRENGTH_CONFIG.texts
+
+  return (
+    <div className={"flex flex-col md:gap-4 gap-2"}>
+      <Card className="overflow-hidden p-0">
+        <CardContent className="py-4 md:py-6 px-4 md:px-6">
+          <Form {...form}>
+            <form
+              method="post"
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="flex flex-col gap-2 sm:gap-4"
+            >
+              <div className="flex flex-col items-center gap-2 text-center">
+                <Image
+                  src="/logo.png"
+                  alt="Logo"
+                  width={100}
+                  height={100}
+                  className="w-10 h-10 rounded-md"
+                />
+                <h1 className="text-2xl font-bold">Create your account</h1>
+                <p className="text-muted-foreground text-xs">
+                  Enter your email below to create your account
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                {/* First name */}
+                <FormField
+                  control={form.control}
+                  name="first_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="First name" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {/* Last name */}
+                <FormField
+                  control={form.control}
+                  name="last_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Last name" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Email" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              className="bg-background pr-10"
+                              id="password"
+                              placeholder="Enter your password"
+                              type={showPassword ? "text" : "password"}
+                              autoComplete="new-password"
+                              {...field}
+                              disabled={isLoading}
+                            />
+                            <Button
+                              className="absolute top-0 right-0 h-full px-3 hover:bg-transparent"
+                              onClick={() => setShowPassword((v) => !v)}
+                              size="icon"
+                              type="button"
+                              variant="ghost"
+                              tabIndex={-1}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="text-muted-foreground h-4 w-4" />
+                              ) : (
+                                <Eye className="text-muted-foreground h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </FormControl>
+
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {/* Confirm password */}
+                  <FormField
+                    control={form.control}
+                    name="confirm_password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              className="bg-background pr-10"
+                              id="confirm_password"
+                              placeholder="Confirm your password"
+                              type={showConfirm ? "text" : "password"}
+                              autoComplete="new-password"
+                              {...field}
+                              disabled={isLoading}
+                            />
+                            <Button
+                              className="absolute top-0 right-0 h-full px-3 hover:bg-transparent"
+                              onClick={() => setShowConfirm((v) => !v)}
+                              size="icon"
+                              type="button"
+                              variant="ghost"
+                              tabIndex={-1}
+                            >
+                              {showConfirm ? (
+                                <EyeOff className="text-muted-foreground h-4 w-4" />
+                              ) : (
+                                <Eye className="text-muted-foreground h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Strength meter under PASSWORD (not confirm) */}
+                <div>
+                  <div
+                    className={cn(
+                      "h-1 overflow-hidden rounded-full bg-neutral-50 dark:bg-neutral-950 my-2",
+                      calculateStrength.score === 0 && "my-0",
+                    )}
+                    role="progressbar"
+                    aria-valuenow={calculateStrength.score}
+                    aria-valuemin={0}
+                    aria-valuemax={5}
+                  >
+                    <div
+                      className={`h-full ${
+                        STRENGTH_CONFIG.colors[calculateStrength.score]
+                      } transition-all duration-500`}
+                      style={{ width: `${(calculateStrength.score / 5) * 100}%` }}
+                    />
+                  </div>
+
+                  <p className="flex justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-2 text-xs">
+                      Must contain
+                      <HoverCard openDelay={200}>
+                        <HoverCardTrigger asChild>
+                          <button type="button" className="inline-flex items-center">
+                            <Info
+                              size={18}
+                              className={`cursor-pointer ${STRENGTH_CONFIG.colors[
+                                calculateStrength.score
+                              ].replace("bg-", "text-")} transition-all`}
+                            />
+                          </button>
+                        </HoverCardTrigger>
+                        <HoverCardContent className="bg-neutral-50 dark:bg-neutral-950">
+                          <ul className="space-y-1.5" aria-label="Password requirements">
+                            {calculateStrength.requirements.map((req, index) => (
+                              <li key={index} className="flex items-center space-x-2">
+                                {req.met ? (
+                                  <Check size={16} className="text-emerald-500" />
+                                ) : (
+                                  <X size={16} className="text-muted-foreground/80" />
+                                )}
+                                <span
+                                  className={`text-xs ${
+                                    req.met ? "text-emerald-600" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {req.text}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </HoverCardContent>
+                      </HoverCard>
+                    </span>
+
+                    {/* <span>{STRENGTH_CONFIG.texts[strengthTextKey]}</span> */}
+                  </p>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing up..." : "Sign up"}
+                {isLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              </Button>
+
+              <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
+                Or continue with
+              </FieldSeparator>
+              <Button variant="outline" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                  <path
+                    d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span>Sign Up with Google</span>
+              </Button>
+
+              <p className="text-center text-xs">
+                Already have an account?{" "}
+                <Link className="text-primary underline-offset-4 hover:underline" href={"/login"}>
+                  Log in
+                </Link>
+              </p>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+      <FieldDescription className="text-xs text-center">
+        By clicking continue, you agree to our <Link href="#">Terms of Service</Link> and{" "}
+        <Link href="#">Privacy Policy</Link>
+      </FieldDescription>
+    </div>
+  )
+}
+
+export default SignupForm
