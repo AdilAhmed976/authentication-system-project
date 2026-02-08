@@ -18,12 +18,22 @@ const router = useRouter()
   }
 
   useEffect(() => {
+    let isMounted = true
     async function loadUser() {
       try {
-        await loadUser()
-      } catch (error) {
+        const { data, error } = await supabase.auth.getUser()
+        if (!isMounted) {
+          return
+        }
+        if (error) {
+          setCurrentUser(null)
+          return
+        }
+        setCurrentUser(data?.user ?? null)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
     loadUser()
@@ -33,9 +43,10 @@ const router = useRouter()
     })
 
     return () => {
+      isMounted = false
       listener.subscription.unsubscribe()
     }
-  }, [])
+  }, [supabase])
 
   if (loading) {
     return <div className="p-10 text-center text-slate-400">Loading user…</div>

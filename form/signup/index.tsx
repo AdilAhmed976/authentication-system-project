@@ -79,7 +79,7 @@ const SignupForm = ({}: SignFormProps) => {
         email: payload.email,
         password: payload.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/welcome`,
+          emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             first_name: payload.first_name,
             last_name: payload.last_name,
