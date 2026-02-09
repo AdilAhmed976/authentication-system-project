@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { PasswordStrength, SignFormProps, SignFormValues, StrengthScore } from "./signup.types"
@@ -124,6 +124,19 @@ const SignupForm = ({}: SignFormProps) => {
       toast.error((error as Error).message)
     }
   }
+
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+
+      if (session?.user?.id) {
+        router.replace("/dashboard")
+        router.refresh()
+      }
+    })
+    return () => {
+      listener?.subscription.unsubscribe()
+    }
+  }, [supabase , router])
 
   const password = form.watch("password") ?? ""
 

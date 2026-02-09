@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { LoginFormProps, LoginFormValues } from "./login.types"
@@ -74,6 +74,19 @@ const LoginForm = ({}: LoginFormProps) => {
       toast.error((error as Error).message)
     }
   }
+
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+
+      if (session?.user?.id) {
+        router.replace("/dashboard")
+        router.refresh()
+      }
+    })
+    return () => {
+      listener?.subscription.unsubscribe()
+    }
+  }, [supabase , router])
 
   return (
     <div className={"flex flex-col md:gap-4 gap-2"}>
